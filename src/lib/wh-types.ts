@@ -12,6 +12,7 @@ export interface BudgetItem {
   estimatedCost: number;
   advancePaid: number;
   status: "Draft" | "Confirmed";
+  vendorId?: string;
 }
 
 export interface Task {

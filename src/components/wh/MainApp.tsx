@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   LayoutDashboard,
   Inbox,
@@ -17,8 +17,21 @@ import {
   Sparkles,
   Pencil,
 } from "lucide-react";
-import type { BudgetItem, InboxItem, SavedLink, Task, Vendor, LinkCategory } from "@/lib/wh-types";
-import { BUDGET_CATEGORIES, LINK_CATEGORIES, VENDOR_CATEGORIES } from "@/lib/wh-types";
+import type {
+  BudgetItem,
+  InboxItem,
+  SavedLink,
+  Task,
+  Vendor,
+  LinkCategory,
+  ChecklistItem,
+} from "@/lib/wh-types";
+import {
+  BUDGET_CATEGORIES,
+  LINK_CATEGORIES,
+  VENDOR_CATEGORIES,
+  CHECKLIST_SEED,
+} from "@/lib/wh-types";
 import {
   daysUntil,
   detectType,
@@ -35,6 +48,8 @@ type TabId = "home" | "inbox" | "budget" | "tasks" | "vendors";
 
 export function MainApp({ store }: { store: WhStore }) {
   const [tab, setTab] = useState<TabId>("home");
+  const [tasksSubTab, setTasksSubTab] = useState<"tasks" | "checklist">("tasks");
+  const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
   const { session, data, syncing, logout } = store;
 
   const openTasks = data.tasks.filter((t) => t.status === "todo").length;
@@ -46,6 +61,18 @@ export function MainApp({ store }: { store: WhStore }) {
   const title = tab === "home" ? "Shubh Vivah" : tab[0].toUpperCase() + tab.slice(1);
   const dateLabel = data.weddingDate ? formatWeddingDate(data.weddingDate) : "";
   const days = data.weddingDate ? daysUntil(data.weddingDate) : 0;
+
+  const handleGoToVendor = (vendorId: string) => {
+    setSelectedVendorId(vendorId);
+    setTab("vendors");
+  };
+
+  const handleGoto = (t: TabId, subTab?: "tasks" | "checklist") => {
+    if (t === "tasks") {
+      setTasksSubTab(subTab ?? "tasks");
+    }
+    setTab(t);
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -88,48 +115,58 @@ export function MainApp({ store }: { store: WhStore }) {
         </div>
       </header>
 
-      <main className="flex-1 pb-[calc(72px+env(safe-area-inset-bottom))]">
+      <main className="flex-1 pb-[calc(82px+env(safe-area-inset-bottom))]">
         <div className="mx-auto max-w-2xl px-4 py-4">
-          {tab === "home" && <HomeTab store={store} goto={setTab} />}
+          {tab === "home" && <HomeTab store={store} goto={handleGoto} />}
           {tab === "inbox" && <InboxTab store={store} />}
-          {tab === "budget" && <BudgetTab store={store} />}
-          {tab === "tasks" && <TasksTab store={store} />}
-          {tab === "vendors" && <VendorsTab store={store} />}
+          {tab === "budget" && <BudgetTab store={store} onGoToVendor={handleGoToVendor} />}
+          {tab === "tasks" && (
+            <TasksTab store={store} sub={tasksSubTab} onSubChange={setTasksSubTab} />
+          )}
+          {tab === "vendors" && (
+            <VendorsTab
+              store={store}
+              selectedVendorId={selectedVendorId}
+              onClearSelectedVendor={() => setSelectedVendorId(null)}
+            />
+          )}
         </div>
       </main>
 
       {/* Bottom nav */}
-      <nav className="fixed bottom-0 inset-x-0 z-30 border-t border-border bg-card/95 backdrop-blur-md safe-bottom shadow-lg">
-        <div className="mx-auto max-w-2xl grid grid-cols-5 h-[62px]">
+      <nav className="fixed bottom-0 inset-x-0 z-30 bg-card/95 backdrop-blur-md safe-bottom shadow-[0_-10px_40px_rgba(46,35,27,0.12)]">
+        {/* Gold Zari Top Accent Line */}
+        <div className="h-1 bg-gradient-to-r from-accent via-amber-400 to-accent" />
+        <div className="mx-auto max-w-2xl grid grid-cols-5 h-[76px] px-2 items-center">
           <NavBtn
             active={tab === "home"}
-            onClick={() => setTab("home")}
+            onClick={() => handleGoto("home")}
             icon={<LayoutDashboard />}
             label="Home"
           />
           <NavBtn
             active={tab === "inbox"}
-            onClick={() => setTab("inbox")}
+            onClick={() => handleGoto("inbox")}
             icon={<Inbox />}
             label="Inbox"
             badge={inboxBadge}
           />
           <NavBtn
             active={tab === "budget"}
-            onClick={() => setTab("budget")}
+            onClick={() => handleGoto("budget")}
             icon={<DollarSign />}
             label="Budget"
           />
           <NavBtn
             active={tab === "tasks"}
-            onClick={() => setTab("tasks")}
+            onClick={() => handleGoto("tasks", "tasks")}
             icon={<CheckSquare />}
             label="Tasks"
             badge={tasksBadge}
           />
           <NavBtn
             active={tab === "vendors"}
-            onClick={() => setTab("vendors")}
+            onClick={() => handleGoto("vendors")}
             icon={<Store />}
             label="Vendors"
           />
@@ -164,16 +201,38 @@ function NavBtn({
     <button
       onClick={onClick}
       className={
-        "relative flex flex-col items-center justify-center gap-0.5 transition-all " +
-        (active
-          ? "text-primary scale-105 font-semibold"
-          : "text-muted-foreground hover:text-foreground")
+        "relative flex flex-col items-center justify-center h-full w-full py-1.5 transition-all duration-300 cursor-pointer outline-none select-none " +
+        (active ? "text-primary" : "text-muted-foreground hover:text-foreground")
       }
+      style={{ minHeight: "56px" }}
     >
-      <span className="size-5 [&>svg]:size-5">{icon}</span>
-      <span className="text-[10px] font-medium tracking-wide">{label}</span>
+      <div
+        className={
+          "p-2.5 rounded-2xl transition-all duration-300 flex items-center justify-center relative " +
+          (active
+            ? "bg-gradient-to-br from-primary/10 to-accent/15 text-primary shadow-[0_4px_16px_rgba(128,19,29,0.06)] scale-105"
+            : "bg-transparent hover:bg-secondary/50")
+        }
+      >
+        <span
+          className={`size-5 [&>svg]:size-5 transition-transform duration-300 ${active ? "scale-110" : "group-hover:scale-105"}`}
+        >
+          {icon}
+        </span>
+        {active && (
+          <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-accent shadow-[0_0_8px_var(--color-accent)] animate-pulse" />
+        )}
+      </div>
+      <span
+        className={
+          "text-[11px] font-bold tracking-wide mt-1 transition-all duration-300 " +
+          (active ? "text-primary font-black scale-105" : "text-muted-foreground font-semibold")
+        }
+      >
+        {label}
+      </span>
       {badge != null && badge > 0 && (
-        <span className="absolute top-1 right-[calc(50%-24px)] min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-mono-num flex items-center justify-center font-bold">
+        <span className="absolute top-2.5 right-[calc(50%-24px)] min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[9px] font-mono-num flex items-center justify-center font-bold border border-card shadow-md animate-pulse">
           {badge > 9 ? "9+" : badge}
         </span>
       )}
@@ -182,7 +241,13 @@ function NavBtn({
 }
 
 // ============= HOME =============
-function HomeTab({ store, goto }: { store: WhStore; goto: (t: TabId) => void }) {
+function HomeTab({
+  store,
+  goto,
+}: {
+  store: WhStore;
+  goto: (t: TabId, subTab?: "tasks" | "checklist") => void;
+}) {
   const { data, setWeddingDate, session } = store;
   const [showPicker, setShowPicker] = useState(false);
   const [quickNote, setQuickNote] = useState("");
@@ -344,12 +409,12 @@ function HomeTab({ store, goto }: { store: WhStore; goto: (t: TabId) => void }) 
               }
             }}
             placeholder="Type quote, vendor name, or a quick todo..."
-            className="wh-input flex-1 !min-height-[44px] !h-[44px] text-sm"
+            className="wh-input flex-1 !min-h-[52px] !h-[52px] text-base"
           />
           <button
             onClick={submitQuickNote}
             disabled={!quickNote.trim()}
-            className="wh-btn !min-height-[44px] !h-[44px] !px-4 cursor-pointer"
+            className="wh-btn !min-h-[52px] !h-[52px] !px-6 cursor-pointer font-bold text-base"
             data-variant="secondary"
           >
             Capture
@@ -367,7 +432,7 @@ function HomeTab({ store, goto }: { store: WhStore; goto: (t: TabId) => void }) 
 
       {/* Checklist progress */}
       <button
-        onClick={() => goto("tasks")}
+        onClick={() => goto("tasks", "checklist")}
         className="wh-card w-full text-left hover:border-primary/40 hover:shadow-md transition-all cursor-pointer group"
       >
         <div className="flex items-center justify-between mb-2">
@@ -725,8 +790,194 @@ function EmptyRow({ icon, text }: { icon: React.ReactNode; text: string }) {
 }
 
 // ============= INBOX =============
+interface VendorModalData {
+  itemId: string;
+  itemType: "inbox" | "links";
+  notes: string;
+  name: string;
+  category: string;
+  priceQuote: number;
+}
+
+function VendorTriageBottomSheet({
+  data,
+  onClose,
+  onSave,
+}: {
+  data: VendorModalData;
+  onClose: () => void;
+  onSave: (vendorDetails: {
+    name: string;
+    category: string;
+    priceQuote: number;
+    notes: string;
+  }) => void;
+}) {
+  const [name, setName] = useState(data.name);
+  const [category, setCategory] = useState(data.category);
+  const [priceQuote, setPriceQuote] = useState(data.priceQuote ? String(data.priceQuote) : "");
+  const [notes, setNotes] = useState(data.notes);
+
+  const handleSave = () => {
+    if (!name.trim()) return;
+    onSave({
+      name: name.trim(),
+      category,
+      priceQuote: Math.max(0, parseFloat(priceQuote) || 0),
+      notes: notes.trim(),
+    });
+  };
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 animate-fade-in"
+        onClick={onClose}
+      />
+
+      <div className="fixed bottom-0 inset-x-0 bg-card rounded-t-3xl border-t border-border shadow-2xl z-50 max-h-[85vh] overflow-y-auto pb-[calc(24px+env(safe-area-inset-bottom))] p-6 space-y-4 md:max-w-md md:mx-auto md:rounded-2xl md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:inset-x-auto md:w-full md:border md:shadow-2xl animate-slide-up">
+        <div className="w-12 h-1 bg-muted rounded-full mx-auto mb-2 md:hidden" />
+
+        <div className="flex items-center justify-between">
+          <h3 className="font-serif font-bold text-lg text-primary">Sort to Vendor</h3>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground p-2 rounded-lg"
+            style={{ minWidth: "44px", minHeight: "44px" }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+              Vendor Name
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter vendor name..."
+              className="wh-input !min-h-[52px] !h-[52px] text-base"
+              autoFocus
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+              Category
+            </label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="wh-input !min-h-[52px] !h-[52px] text-base"
+            >
+              {VENDOR_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+              Price Quote (₹)
+            </label>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={priceQuote}
+              onChange={(e) => setPriceQuote(e.target.value)}
+              placeholder="Enter price quote..."
+              className="wh-input !min-h-[52px] !h-[52px] text-base font-mono-num"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+              Notes
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Vendor details, comments, or references..."
+              className="wh-input !min-h-[80px]"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={onClose}
+              className="wh-btn flex-1 !min-h-[52px] !h-[52px] text-base font-semibold cursor-pointer"
+              data-variant="ghost"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!name.trim()}
+              className="wh-btn flex-1 !min-h-[52px] !h-[52px] text-base font-semibold cursor-pointer"
+              data-variant="primary"
+            >
+              Save Vendor
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function InboxTab({ store }: { store: WhStore }) {
   const [sub, setSub] = useState<"notes" | "links">("notes");
+  const [vendorModalData, setVendorModalData] = useState<VendorModalData | null>(null);
+
+  const handleOpenVendorModal = (item: {
+    id: string;
+    type: "inbox" | "links";
+    notes: string;
+    name: string;
+    category: string;
+    priceQuote: number;
+  }) => {
+    setVendorModalData({
+      itemId: item.id,
+      itemType: item.type,
+      notes: item.notes,
+      name: item.name,
+      category: item.category,
+      priceQuote: item.priceQuote,
+    });
+  };
+
+  const handleSaveVendor = (details: {
+    name: string;
+    category: string;
+    priceQuote: number;
+    notes: string;
+  }) => {
+    if (!vendorModalData) return;
+    const { itemId, itemType } = vendorModalData;
+    const v: Vendor = {
+      id: newId("ven"),
+      name: details.name,
+      category: details.category,
+      contact: "",
+      priceQuote: details.priceQuote,
+      status: "Shortlisted",
+      notes: details.notes,
+    };
+    store.update("vendors", (prev) => [v, ...prev]);
+    if (itemType === "inbox") {
+      store.update("inbox", (prev) => prev.filter((x) => x.id !== itemId));
+    } else {
+      store.update("links", (prev) => prev.filter((x) => x.id !== itemId));
+    }
+    setVendorModalData(null);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex gap-1 p-1 bg-card border border-border rounded-xl">
@@ -737,7 +988,45 @@ function InboxTab({ store }: { store: WhStore }) {
           Links
         </SubTab>
       </div>
-      {sub === "notes" ? <InboxNotes store={store} /> : <InboxLinks store={store} />}
+      {sub === "notes" ? (
+        <InboxNotes
+          store={store}
+          onToVendor={(i) =>
+            handleOpenVendorModal({
+              id: i.id,
+              type: "inbox",
+              notes: i.text,
+              name: i.text.slice(0, 60),
+              category: "Venue",
+              priceQuote: extractNumber(i.text),
+            })
+          }
+        />
+      ) : (
+        <InboxLinks
+          store={store}
+          onToVendor={(l) =>
+            handleOpenVendorModal({
+              id: l.id,
+              type: "links",
+              notes: l.comment ? `${l.comment}\n${l.url}` : l.url,
+              name: (l.comment || extractDomain(l.url)).slice(0, 60),
+              category: (VENDOR_CATEGORIES as readonly string[]).includes(l.category)
+                ? l.category
+                : "Venue",
+              priceQuote: 0,
+            })
+          }
+        />
+      )}
+
+      {vendorModalData && (
+        <VendorTriageBottomSheet
+          data={vendorModalData}
+          onClose={() => setVendorModalData(null)}
+          onSave={handleSaveVendor}
+        />
+      )}
     </div>
   );
 }
@@ -755,10 +1044,10 @@ function SubTab({
     <button
       onClick={onClick}
       className={
-        "flex-1 h-10 rounded-lg text-sm font-medium transition-colors " +
+        "flex-1 h-[46px] rounded-lg text-sm font-bold transition-all duration-200 cursor-pointer flex items-center justify-center " +
         (active
-          ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:text-foreground")
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "text-muted-foreground hover:text-foreground hover:bg-secondary/20")
       }
     >
       {children}
@@ -766,7 +1055,7 @@ function SubTab({
   );
 }
 
-function InboxNotes({ store }: { store: WhStore }) {
+function InboxNotes({ store, onToVendor }: { store: WhStore; onToVendor: (i: InboxItem) => void }) {
   const [text, setText] = useState("");
   const submit = () => {
     const t = text.trim();
@@ -804,20 +1093,7 @@ function InboxNotes({ store }: { store: WhStore }) {
     store.update("budget", (prev) => [b, ...prev]);
     store.update("inbox", (prev) => prev.filter((x) => x.id !== i.id));
   };
-  const toVendor = (i: InboxItem) => {
-    const quote = extractNumber(i.text);
-    const v: Vendor = {
-      id: newId("ven"),
-      name: i.text.slice(0, 60),
-      category: "Venue", // Default category
-      contact: "",
-      priceQuote: quote,
-      status: "Shortlisted",
-      notes: i.text,
-    };
-    store.update("vendors", (prev) => [v, ...prev]);
-    store.update("inbox", (prev) => prev.filter((x) => x.id !== i.id));
-  };
+
   return (
     <div className="space-y-3">
       <div className="wh-card space-y-3">
@@ -866,39 +1142,36 @@ function InboxNotes({ store }: { store: WhStore }) {
               <p className="text-sm whitespace-pre-wrap break-words leading-relaxed font-medium text-foreground">
                 {i.text}
               </p>
-              <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-border/20">
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/20">
                 <button
                   onClick={() => toTask(i)}
-                  className="wh-chip min-h-[34px] px-3 font-semibold hover:bg-primary hover:text-primary-foreground transition-all cursor-pointer"
+                  className="wh-chip min-h-[52px] h-[52px] px-5 text-sm font-bold hover:bg-primary hover:text-primary-foreground transition-all cursor-pointer flex items-center justify-center rounded-xl"
                 >
                   → Task
                 </button>
                 <button
                   onClick={() => toBudget(i)}
-                  className="wh-chip min-h-[34px] px-3 font-semibold hover:bg-emerald-500 hover:text-white transition-all cursor-pointer"
+                  className="wh-chip min-h-[52px] h-[52px] px-5 text-sm font-bold hover:bg-emerald-500 hover:text-white transition-all cursor-pointer flex items-center justify-center rounded-xl"
                   data-tone="success"
                 >
                   → Budget
                 </button>
                 <button
-                  onClick={() => toVendor(i)}
-                  className="wh-chip min-h-[34px] px-3 font-semibold hover:bg-indigo-500 hover:text-white transition-all cursor-pointer"
+                  onClick={() => onToVendor(i)}
+                  className="wh-chip min-h-[52px] h-[52px] px-5 text-sm font-bold hover:bg-indigo-500 hover:text-white transition-all cursor-pointer flex items-center justify-center rounded-xl"
                 >
                   → Vendor
                 </button>
                 <button
                   onClick={() => store.update("inbox", (p) => p.filter((x) => x.id !== i.id))}
-                  className="p-2 rounded-xl hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors ml-auto cursor-pointer"
+                  className="hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors ml-auto cursor-pointer rounded-xl flex items-center justify-center"
                   style={{
-                    minWidth: "40px",
-                    minHeight: "40px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
+                    minWidth: "52px",
+                    minHeight: "52px",
                   }}
                   aria-label="Delete"
                 >
-                  <Trash2 className="size-4" />
+                  <Trash2 className="size-5" />
                 </button>
               </div>
             </li>
@@ -909,7 +1182,7 @@ function InboxNotes({ store }: { store: WhStore }) {
   );
 }
 
-function InboxLinks({ store }: { store: WhStore }) {
+function InboxLinks({ store, onToVendor }: { store: WhStore; onToVendor: (l: SavedLink) => void }) {
   const [url, setUrl] = useState("");
   const [comment, setComment] = useState("");
   const [category, setCategory] = useState<LinkCategory>("Inspiration");
@@ -991,7 +1264,7 @@ function InboxLinks({ store }: { store: WhStore }) {
                   href={l.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline truncate"
+                  className="text-sm text-primary hover:underline truncate font-semibold"
                 >
                   {extractDomain(l.url)}
                 </a>
@@ -999,21 +1272,30 @@ function InboxLinks({ store }: { store: WhStore }) {
                   {l.category}
                 </span>
               </div>
-              {l.comment && <p className="text-sm">{l.comment}</p>}
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-[11px] text-muted-foreground font-mono-num">
-                  {relativeTime(l.timestamp)}
-                </span>
-                <button onClick={() => toTask(l)} className="wh-chip ml-auto">
+              {l.comment && <p className="text-sm font-medium text-foreground">{l.comment}</p>}
+              <div className="flex flex-wrap items-center gap-2 mt-3 pt-2.5 border-t border-border/20">
+                <button
+                  onClick={() => toTask(l)}
+                  className="wh-chip min-h-[52px] h-[52px] px-5 text-sm font-bold hover:bg-primary hover:text-primary-foreground transition-all cursor-pointer flex items-center justify-center rounded-xl"
+                >
                   → Task
                 </button>
                 <button
+                  onClick={() => onToVendor(l)}
+                  className="wh-chip min-h-[52px] h-[52px] px-5 text-sm font-bold hover:bg-indigo-500 hover:text-white transition-all cursor-pointer flex items-center justify-center rounded-xl"
+                >
+                  → Vendor
+                </button>
+                <button
                   onClick={() => store.update("links", (p) => p.filter((x) => x.id !== l.id))}
-                  className="wh-icon-btn"
-                  data-danger="true"
+                  className="hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors ml-auto cursor-pointer rounded-xl flex items-center justify-center"
+                  style={{
+                    minWidth: "52px",
+                    minHeight: "52px",
+                  }}
                   aria-label="Delete"
                 >
-                  <Trash2 className="size-4" />
+                  <Trash2 className="size-5" />
                 </button>
               </div>
             </li>
@@ -1025,7 +1307,13 @@ function InboxLinks({ store }: { store: WhStore }) {
 }
 
 // ============= BUDGET =============
-function BudgetTab({ store }: { store: WhStore }) {
+function BudgetTab({
+  store,
+  onGoToVendor,
+}: {
+  store: WhStore;
+  onGoToVendor?: (vendorId: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [category, setCategory] = useState<string>(BUDGET_CATEGORIES[0]);
@@ -1033,6 +1321,62 @@ function BudgetTab({ store }: { store: WhStore }) {
   const [paid, setPaid] = useState("");
   const [status, setStatus] = useState<"Draft" | "Confirmed">("Draft");
   const { budget } = store.data;
+
+  // Budget editing states
+  const [editingBudgetItemId, setEditingBudgetItemId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editEst, setEditEst] = useState("");
+  const [editPaid, setEditPaid] = useState("");
+
+  const handleStartEdit = (b: BudgetItem) => {
+    setEditingBudgetItemId(b.id);
+    setEditName(b.name);
+    setEditCategory(b.category);
+    setEditEst(String(b.estimatedCost));
+    setEditPaid(String(b.advancePaid));
+  };
+
+  const handleSaveEdit = (item: BudgetItem) => {
+    const estVal = Math.max(0, parseFloat(editEst) || 0);
+    const paidVal = Math.max(0, parseFloat(editPaid) || 0);
+
+    // 1. Update the budget item
+    store.update("budget", (prev) =>
+      prev.map((b) =>
+        b.id === item.id
+          ? {
+              ...b,
+              name: editName.trim() || b.name,
+              category: editCategory,
+              estimatedCost: estVal,
+              advancePaid: paidVal,
+            }
+          : b,
+      ),
+    );
+
+    // 2. Sync changes back to any linked vendor
+    const linkedVendor = store.data.vendors.find(
+      (v) => v.id === item.vendorId || (v.name === item.name && v.category === item.category),
+    );
+    if (linkedVendor) {
+      store.update("vendors", (prev) =>
+        prev.map((v) =>
+          v.id === linkedVendor.id
+            ? {
+                ...v,
+                name: editName.trim() || v.name,
+                category: editCategory,
+                priceQuote: estVal,
+              }
+            : v,
+        ),
+      );
+    }
+
+    setEditingBudgetItemId(null);
+  };
 
   // Retrieve total budget available
   const limitItem = budget.find((b) => b.id === "total_budget_limit");
@@ -1042,6 +1386,8 @@ function BudgetTab({ store }: { store: WhStore }) {
 
   const displayBudgetItems = budget.filter((b) => b.id !== "total_budget_limit");
   const totalPaid = displayBudgetItems.reduce((a, b) => a + b.advancePaid, 0);
+  const totalEstimated = displayBudgetItems.reduce((a, b) => a + b.estimatedCost, 0);
+  const totalPendingToPay = Math.max(0, totalEstimated - totalPaid);
   const remainingBudget = totalBudgetAvailable - totalPaid;
   const pct = totalBudgetAvailable
     ? Math.min(100, Math.round((totalPaid / totalBudgetAvailable) * 100))
@@ -1089,7 +1435,7 @@ function BudgetTab({ store }: { store: WhStore }) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-fade-in">
       {/* Top Total Budget Available, Total Paid, and Remaining Budget Summary Card */}
       <div className="wh-card space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border/40">
@@ -1108,13 +1454,13 @@ function BudgetTab({ store }: { store: WhStore }) {
                     inputMode="numeric"
                     value={tempBudgetLimit}
                     onChange={(e) => setTempBudgetLimit(e.target.value)}
-                    className="wh-input !min-h-[40px] !h-[40px] !pl-7 text-sm font-semibold font-mono-num"
+                    className="wh-input !min-h-[52px] !h-[52px] !pl-7 text-sm font-semibold font-mono-num"
                     autoFocus
                   />
                 </div>
                 <button
                   onClick={saveBudgetLimit}
-                  className="wh-btn !min-h-[40px] !h-[40px] !px-3 text-xs"
+                  className="wh-btn !min-h-[52px] !h-[52px] !px-4 text-sm font-semibold cursor-pointer"
                   data-variant="primary"
                 >
                   Save
@@ -1124,7 +1470,7 @@ function BudgetTab({ store }: { store: WhStore }) {
                     setTempBudgetLimit(String(totalBudgetAvailable));
                     setEditingBudgetLimit(false);
                   }}
-                  className="wh-btn !min-h-[40px] !h-[40px] !px-3 text-xs"
+                  className="wh-btn !min-h-[52px] !h-[52px] !px-3 text-sm font-semibold cursor-pointer"
                   data-variant="ghost"
                 >
                   ✕
@@ -1141,9 +1487,16 @@ function BudgetTab({ store }: { store: WhStore }) {
                     setEditingBudgetLimit(true);
                   }}
                   className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                  style={{
+                    minWidth: "44px",
+                    minHeight: "44px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
                   aria-label="Edit budget limit"
                 >
-                  <Pencil className="size-3.5" />
+                  <Pencil className="size-4" />
                 </button>
               </div>
             )}
@@ -1153,20 +1506,28 @@ function BudgetTab({ store }: { store: WhStore }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 text-center">
-          <div className="p-3.5 bg-secondary/30 rounded-xl border border-border/30">
-            <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="p-2.5 bg-secondary/30 rounded-xl border border-border/30 flex flex-col justify-between">
+            <p className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-muted-foreground leading-tight">
               Total Paid
             </p>
-            <p className="font-mono-num font-extrabold text-lg mt-1 text-success">
+            <p className="font-mono-num font-extrabold text-sm sm:text-base mt-1 text-success">
               {formatINR(totalPaid)}
             </p>
           </div>
-          <div className="p-3.5 bg-secondary/30 rounded-xl border border-border/30">
-            <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+          <div className="p-2.5 bg-secondary/30 rounded-xl border border-border/30 flex flex-col justify-between">
+            <p className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-muted-foreground leading-tight">
+              Pending Payments
+            </p>
+            <p className="font-mono-num font-extrabold text-sm sm:text-base mt-1 text-amber-600">
+              {formatINR(totalPendingToPay)}
+            </p>
+          </div>
+          <div className="p-2.5 bg-secondary/30 rounded-xl border border-border/30 flex flex-col justify-between">
+            <p className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider text-muted-foreground leading-tight">
               Remaining Budget
             </p>
-            <p className="font-mono-num font-extrabold text-lg mt-1 text-primary">
+            <p className="font-mono-num font-extrabold text-sm sm:text-base mt-1 text-primary">
               {formatINR(remainingBudget)}
             </p>
           </div>
@@ -1183,7 +1544,7 @@ function BudgetTab({ store }: { store: WhStore }) {
       {!open ? (
         <button
           onClick={() => setOpen(true)}
-          className="wh-btn w-full min-h-[44px] cursor-pointer"
+          className="wh-btn w-full !min-h-[52px] !h-[52px] text-base font-bold cursor-pointer"
           data-variant="primary"
         >
           <Plus className="size-4" /> Add budget item
@@ -1195,13 +1556,13 @@ function BudgetTab({ store }: { store: WhStore }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="What is this for? (e.g., Catering, Decor)"
-            className="wh-input !min-h-[44px] !h-[44px]"
+            className="wh-input !min-h-[52px] !h-[52px] text-base"
             autoFocus
           />
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="wh-input !min-h-[44px] !h-[44px]"
+            className="wh-input !min-h-[52px] !h-[52px] text-base"
           >
             {BUDGET_CATEGORIES.map((c) => (
               <option key={c} value={c}>
@@ -1219,7 +1580,7 @@ function BudgetTab({ store }: { store: WhStore }) {
                 value={est}
                 onChange={(e) => setEst(e.target.value)}
                 placeholder="Estimated ₹"
-                className="wh-input !min-h-[44px] !h-[44px] font-mono-num"
+                className="wh-input !min-h-[52px] !h-[52px] text-base font-mono-num"
               />
             </div>
             <div className="space-y-1">
@@ -1231,14 +1592,14 @@ function BudgetTab({ store }: { store: WhStore }) {
                 value={paid}
                 onChange={(e) => setPaid(e.target.value)}
                 placeholder="Advance paid ₹"
-                className="wh-input !min-h-[44px] !h-[44px] font-mono-num"
+                className="wh-input !min-h-[52px] !h-[52px] text-base font-mono-num"
               />
             </div>
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => setStatus(status === "Draft" ? "Confirmed" : "Draft")}
-              className="wh-chip min-h-[34px] px-3.5 cursor-pointer"
+              className="wh-chip min-h-[52px] h-[52px] px-6 text-sm font-bold flex items-center justify-center rounded-xl cursor-pointer"
               data-tone={status === "Confirmed" ? "success" : undefined}
             >
               {status}
@@ -1247,14 +1608,14 @@ function BudgetTab({ store }: { store: WhStore }) {
           <div className="flex gap-2 pt-1">
             <button
               onClick={() => setOpen(false)}
-              className="wh-btn flex-1 !min-h-[44px] !h-[44px] cursor-pointer"
+              className="wh-btn flex-1 !min-h-[52px] !h-[52px] text-base font-semibold cursor-pointer"
               data-variant="ghost"
             >
               Cancel
             </button>
             <button
               onClick={submit}
-              className="wh-btn flex-1 !min-h-[44px] !h-[44px] cursor-pointer"
+              className="wh-btn flex-1 !min-h-[52px] !h-[52px] text-base font-semibold cursor-pointer"
               data-variant="primary"
             >
               Save
@@ -1271,57 +1632,165 @@ function BudgetTab({ store }: { store: WhStore }) {
         />
       ) : (
         <ul className="space-y-3">
-          {displayBudgetItems.map((b) => (
-            <li key={b.id} className="wh-card">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-[15px] text-foreground truncate">{b.name}</p>
-                  <span className="wh-chip mt-1.5" data-tone="info">
-                    {b.category}
-                  </span>
-                </div>
-                <div className="text-right">
-                  <p className="font-mono-num font-extrabold text-[15px] text-primary">
-                    {formatINR(b.estimatedCost)}
-                  </p>
-                  <p className="font-mono-num text-xs font-semibold text-muted-foreground mt-0.5">
-                    Paid {formatINR(b.advancePaid)}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 mt-3.5 pt-2 border-t border-border/20">
-                <button
-                  onClick={() =>
-                    store.update("budget", (p) =>
-                      p.map((x) =>
-                        x.id === b.id
-                          ? { ...x, status: x.status === "Draft" ? "Confirmed" : "Draft" }
-                          : x,
-                      ),
-                    )
-                  }
-                  className="wh-chip min-h-[32px] px-3 font-semibold cursor-pointer"
-                  data-tone={b.status === "Confirmed" ? "success" : undefined}
+          {displayBudgetItems.map((b) => {
+            const linkedVendor = store.data.vendors.find(
+              (v) => v.id === b.vendorId || (v.name === b.name && v.category === b.category),
+            );
+            const isEditing = editingBudgetItemId === b.id;
+
+            if (isEditing) {
+              return (
+                <li
+                  key={b.id}
+                  className="wh-card space-y-3 border-accent/40 bg-accent/5 animate-fade-in"
                 >
-                  {b.status}
-                </button>
-                <button
-                  onClick={() => store.update("budget", (p) => p.filter((x) => x.id !== b.id))}
-                  className="p-2 rounded-xl hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors ml-auto cursor-pointer"
-                  style={{
-                    minWidth: "40px",
-                    minHeight: "40px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                  aria-label="Delete"
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
-            </li>
-          ))}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-primary uppercase tracking-wider">
+                      Edit Budget Item
+                    </h4>
+                    <input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="Item name"
+                      className="wh-input bg-card !min-h-[48px] !h-[48px] text-sm"
+                    />
+                    <select
+                      value={editCategory}
+                      onChange={(e) => setEditCategory(e.target.value)}
+                      className="wh-input bg-card !min-h-[48px] !h-[48px] text-sm"
+                    >
+                      {BUDGET_CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold uppercase text-muted-foreground">
+                          Estimated Cost (₹)
+                        </label>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          value={editEst}
+                          onChange={(e) => setEditEst(e.target.value)}
+                          className="wh-input bg-card font-mono-num !min-h-[48px] !h-[48px] text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold uppercase text-muted-foreground">
+                          Paid (₹)
+                        </label>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          value={editPaid}
+                          onChange={(e) => setEditPaid(e.target.value)}
+                          className="wh-input bg-card font-mono-num !min-h-[48px] !h-[48px] text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-1.5">
+                      <button
+                        onClick={() => setEditingBudgetItemId(null)}
+                        className="wh-btn flex-1 !min-h-[44px] !h-[44px] text-xs font-bold cursor-pointer"
+                        data-variant="ghost"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleSaveEdit(b)}
+                        className="wh-btn flex-1 !min-h-[44px] !h-[44px] text-xs font-bold cursor-pointer"
+                        data-variant="primary"
+                      >
+                        Save Changes
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              );
+            }
+
+            return (
+              <li key={b.id} className="wh-card">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-serif font-black text-base text-foreground truncate">
+                        {b.name}
+                      </p>
+                      {linkedVendor && onGoToVendor && (
+                        <button
+                          onClick={() => onGoToVendor(linkedVendor.id)}
+                          className="p-1 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary transition-all flex items-center justify-center cursor-pointer"
+                          style={{ minWidth: "44px", minHeight: "44px" }}
+                          title="View linked vendor"
+                        >
+                          <Store className="size-5" />
+                        </button>
+                      )}
+                    </div>
+                    <span className="wh-chip mt-1.5" data-tone="info">
+                      {b.category}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono-num font-bold text-base text-primary">
+                      {formatINR(b.estimatedCost)}
+                    </p>
+                    <p className="font-mono-num text-xs font-semibold text-muted-foreground mt-0.5">
+                      Paid {formatINR(b.advancePaid)}
+                    </p>
+                    {b.estimatedCost > b.advancePaid && (
+                      <p className="font-mono-num text-[11px] font-bold text-amber-600 mt-0.5">
+                        Pending {formatINR(b.estimatedCost - b.advancePaid)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mt-3.5 pt-2 border-t border-border/20">
+                  <button
+                    onClick={() =>
+                      store.update("budget", (p) =>
+                        p.map((x) =>
+                          x.id === b.id
+                            ? { ...x, status: x.status === "Draft" ? "Confirmed" : "Draft" }
+                            : x,
+                        ),
+                      )
+                    }
+                    className="wh-chip min-h-[52px] h-[52px] px-6 text-sm font-bold flex items-center justify-center rounded-xl cursor-pointer"
+                    data-tone={b.status === "Confirmed" ? "success" : undefined}
+                  >
+                    {b.status}
+                  </button>
+                  <button
+                    onClick={() => handleStartEdit(b)}
+                    className="p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                    style={{
+                      minWidth: "52px",
+                      minHeight: "52px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    aria-label="Edit budget item"
+                  >
+                    <Pencil className="size-4.5" />
+                  </button>
+                  <button
+                    onClick={() => store.update("budget", (p) => p.filter((x) => x.id !== b.id))}
+                    className="hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors ml-auto rounded-xl flex items-center justify-center"
+                    style={{ minWidth: "52px", minHeight: "52px" }}
+                    aria-label="Delete"
+                  >
+                    <Trash2 className="size-5" />
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
@@ -1329,15 +1798,22 @@ function BudgetTab({ store }: { store: WhStore }) {
 }
 
 // ============= TASKS =============
-function TasksTab({ store }: { store: WhStore }) {
-  const [sub, setSub] = useState<"tasks" | "checklist">("tasks");
+function TasksTab({
+  store,
+  sub,
+  onSubChange,
+}: {
+  store: WhStore;
+  sub: "tasks" | "checklist";
+  onSubChange: (s: "tasks" | "checklist") => void;
+}) {
   return (
     <div className="space-y-4">
       <div className="flex gap-1 p-1 bg-card border border-border rounded-xl">
-        <SubTab active={sub === "tasks"} onClick={() => setSub("tasks")}>
+        <SubTab active={sub === "tasks"} onClick={() => onSubChange("tasks")}>
           Tasks
         </SubTab>
-        <SubTab active={sub === "checklist"} onClick={() => setSub("checklist")}>
+        <SubTab active={sub === "checklist"} onClick={() => onSubChange("checklist")}>
           Checklist
         </SubTab>
       </div>
@@ -1558,10 +2034,10 @@ function ChecklistItemRow({
   }
 
   return (
-    <div className="group/item flex items-center justify-between py-2.5 px-3 hover:bg-secondary/20 rounded-xl transition-all border border-transparent hover:border-border/40">
+    <div className="group/item flex items-center justify-between py-2 px-3 hover:bg-secondary/20 rounded-xl transition-all border border-transparent hover:border-border/40">
       <button
         onClick={onToggle}
-        className="flex items-center gap-3.5 text-left flex-1 min-w-0 min-h-[44px] cursor-pointer"
+        className="flex items-center gap-3.5 text-left flex-1 min-w-0 min-h-[52px] cursor-pointer"
       >
         <span
           className={
@@ -1594,15 +2070,15 @@ function ChecklistItemRow({
           }}
           className="p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-primary transition-colors cursor-pointer"
           style={{
-            minWidth: "40px",
-            minHeight: "40px",
+            minWidth: "48px",
+            minHeight: "48px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
           }}
           aria-label="Edit task"
         >
-          <Pencil className="size-4" />
+          <Pencil className="size-4.5" />
         </button>
         <button
           onClick={(e) => {
@@ -1611,15 +2087,15 @@ function ChecklistItemRow({
           }}
           className="p-2 rounded-xl hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors cursor-pointer"
           style={{
-            minWidth: "40px",
-            minHeight: "40px",
+            minWidth: "48px",
+            minHeight: "48px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
           }}
           aria-label="Delete task"
         >
-          <Trash2 className="size-4" />
+          <Trash2 className="size-4.5" />
         </button>
       </div>
     </div>
@@ -1632,6 +2108,16 @@ function ChecklistView({ store }: { store: WhStore }) {
   const [newPhase, setNewPhase] = useState("12+ Months Out");
   const [openAdd, setOpenAdd] = useState(false);
 
+  const handleSeedChecklist = () => {
+    const seeded = CHECKLIST_SEED.map((c, i) => ({
+      id: `chk_${i}_${newId("chk")}`,
+      phase: c.phase,
+      text: c.text,
+      done: false,
+    }));
+    store.update("checklist", () => seeded);
+  };
+
   const grouped = useMemo(() => {
     const map = new Map<string, typeof checklist>();
     for (const c of checklist) {
@@ -1643,6 +2129,28 @@ function ChecklistView({ store }: { store: WhStore }) {
   }, [checklist]);
 
   const done = checklist.filter((c) => c.done).length;
+
+  if (checklist.length === 0) {
+    return (
+      <div className="wh-card text-center py-12 px-4 space-y-4 animate-fade-in border border-accent/25">
+        <div className="mx-auto size-16 rounded-2xl bg-secondary flex items-center justify-center text-primary mb-3 shadow-inner">
+          <ListChecks className="size-8 text-primary" />
+        </div>
+        <h3 className="font-serif font-bold text-xl text-primary">Auspicious Checklist Empty</h3>
+        <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
+          Your custom wedding checklist is currently empty. Generate our expert-curated checklist of
+          traditional South Indian wedding planning phases to kickstart your journey!
+        </p>
+        <button
+          onClick={handleSeedChecklist}
+          className="wh-btn !min-h-[52px] !h-[52px] px-8 cursor-pointer font-bold text-base w-full sm:w-auto"
+          data-variant="primary"
+        >
+          Generate Auspicious Checklist
+        </button>
+      </div>
+    );
+  }
 
   const submit = () => {
     if (!newText.trim()) return;
@@ -1775,7 +2283,129 @@ function ChecklistView({ store }: { store: WhStore }) {
 }
 
 // ============= VENDORS =============
-function VendorsTab({ store }: { store: WhStore }) {
+function findChecklistItemForCategory(category: string, checklist: ChecklistItem[]) {
+  const cat = category.toLowerCase();
+  let keyword = "";
+  if (cat === "venue") keyword = "venue";
+  else if (cat === "catering") keyword = "cater";
+  else if (cat === "photography") keyword = "photograph";
+  else if (cat === "entertainment") keyword = "dj or band";
+  else if (cat === "décor" || cat === "decor") keyword = "florist";
+  else if (cat === "attire") keyword = "attire";
+  else if (cat === "transport") keyword = "shuttles";
+  else if (cat === "accommodation") keyword = "accommodation";
+
+  if (keyword) {
+    return checklist.find((c) => c.text.toLowerCase().includes(keyword));
+  }
+  return null;
+}
+
+interface DepositBottomSheetProps {
+  vendor: Vendor;
+  onClose: () => void;
+  onSubmit: (advancePaid: number, estimate: number) => void;
+}
+
+function DepositBottomSheet({ vendor, onClose, onSubmit }: DepositBottomSheetProps) {
+  const [amount, setAmount] = useState("");
+  const [estimate, setEstimate] = useState(String(vendor.priceQuote || ""));
+
+  const handleSave = () => {
+    onSubmit(Math.max(0, parseFloat(amount) || 0), Math.max(0, parseFloat(estimate) || 0));
+  };
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 animate-fade-in"
+        onClick={onClose}
+      />
+
+      <div className="fixed bottom-0 inset-x-0 bg-card rounded-t-3xl border-t border-border shadow-2xl z-50 max-h-[85vh] overflow-y-auto pb-[calc(24px+env(safe-area-inset-bottom))] p-6 space-y-4 md:max-w-md md:mx-auto md:rounded-2xl md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:inset-x-auto md:w-full md:border md:shadow-2xl animate-slide-up">
+        <div className="w-12 h-1 bg-muted rounded-full mx-auto mb-2 md:hidden" />
+
+        <div className="flex items-center justify-between">
+          <h3 className="font-serif font-bold text-lg text-primary">Enter Booking Details</h3>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground p-2 rounded-lg"
+            style={{ minWidth: "44px", minHeight: "44px" }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Confirm estimated budget and advance paid for{" "}
+            <strong className="text-foreground">{vendor.name}</strong> to update the budget.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                Estimated Cost (₹)
+              </label>
+              <input
+                type="number"
+                inputMode="decimal"
+                value={estimate}
+                onChange={(e) => setEstimate(e.target.value)}
+                placeholder="e.g. 50000"
+                className="wh-input !min-h-[52px] !h-[52px] text-base font-mono-num font-bold"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                Advance Paid (₹)
+              </label>
+              <input
+                type="number"
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="e.g. 25000"
+                className="wh-input !min-h-[52px] !h-[52px] text-base font-mono-num font-bold"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={() =>
+                onSubmit(0, Math.max(0, parseFloat(estimate) || vendor.priceQuote || 0))
+              }
+              className="wh-btn flex-1 !min-h-[52px] !h-[52px] text-base font-semibold cursor-pointer"
+              data-variant="ghost"
+            >
+              Skip Advance
+            </button>
+            <button
+              onClick={handleSave}
+              className="wh-btn flex-1 !min-h-[52px] !h-[52px] text-base font-semibold cursor-pointer"
+              data-variant="primary"
+            >
+              Confirm Booked
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function VendorsTab({
+  store,
+  selectedVendorId,
+  onClearSelectedVendor,
+}: {
+  store: WhStore;
+  selectedVendorId?: string | null;
+  onClearSelectedVendor?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [category, setCategory] = useState<string>(VENDOR_CATEGORIES[0]);
@@ -1783,6 +2413,79 @@ function VendorsTab({ store }: { store: WhStore }) {
   const [price, setPrice] = useState("");
   const [notes, setNotes] = useState("");
   const [filter, setFilter] = useState<string>("All");
+  const [depositModalVendor, setDepositModalVendor] = useState<Vendor | null>(null);
+
+  // Vendor editing states
+  const [editingVendorId, setEditingVendorId] = useState<string | null>(null);
+  const [editVenName, setEditVenName] = useState("");
+  const [editVenCategory, setEditVenCategory] = useState("");
+  const [editVenContact, setEditVenContact] = useState("");
+  const [editVenPrice, setEditVenPrice] = useState("");
+  const [editVenNotes, setEditVenNotes] = useState("");
+
+  const handleStartEditVendor = (v: Vendor) => {
+    setEditingVendorId(v.id);
+    setEditVenName(v.name);
+    setEditVenCategory(v.category);
+    setEditVenContact(v.contact);
+    setEditVenPrice(String(v.priceQuote));
+    setEditVenNotes(v.notes);
+  };
+
+  const handleSaveVendorEdit = (vendor: Vendor) => {
+    const priceVal = Math.max(0, parseFloat(editVenPrice) || 0);
+
+    // 1. Update the vendor item
+    store.update("vendors", (prev) =>
+      prev.map((v) =>
+        v.id === vendor.id
+          ? {
+              ...v,
+              name: editVenName.trim() || v.name,
+              category: editVenCategory,
+              contact: editVenContact.trim(),
+              priceQuote: priceVal,
+              notes: editVenNotes.trim(),
+            }
+          : v,
+      ),
+    );
+
+    // 2. Sync with budget item
+    store.update("budget", (prev) =>
+      prev.map((b) => {
+        const isLinked =
+          b.vendorId === vendor.id || (b.name === vendor.name && b.category === vendor.category);
+        if (isLinked) {
+          return {
+            ...b,
+            name: editVenName.trim() || b.name,
+            category: editVenCategory,
+            estimatedCost: priceVal,
+          };
+        }
+        return b;
+      }),
+    );
+
+    setEditingVendorId(null);
+  };
+
+  // Auto-scroll and filter when redirected to a vendor
+  useEffect(() => {
+    if (selectedVendorId) {
+      const matchedVendor = store.data.vendors.find((v) => v.id === selectedVendorId);
+      if (matchedVendor) {
+        setFilter("All");
+        setTimeout(() => {
+          const el = document.getElementById(`vendor-card-${selectedVendorId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }, 300);
+      }
+    }
+  }, [selectedVendorId, store.data.vendors]);
 
   const submit = () => {
     if (!name.trim()) return;
@@ -1803,8 +2506,96 @@ function VendorsTab({ store }: { store: WhStore }) {
     setOpen(false);
   };
 
-  const cycle = (v: Vendor): Vendor["status"] =>
-    v.status === "Shortlisted" ? "Contacted" : v.status === "Contacted" ? "Booked" : "Shortlisted";
+  const handleConfirmBooking = (vendor: Vendor, advancePaid: number, estimate: number) => {
+    // 1. Update Vendor Status to "Booked" and keep priceQuote synchronized
+    store.update("vendors", (prev) =>
+      prev.map((v) =>
+        v.id === vendor.id ? { ...v, status: "Booked" as const, priceQuote: estimate } : v,
+      ),
+    );
+
+    // 2. EVENT A: Budget Sync
+    store.update("budget", (prev) => {
+      const index = prev.findIndex(
+        (b) => b.vendorId === vendor.id || b.name === vendor.name || b.category === vendor.category,
+      );
+
+      if (index === -1) {
+        const newItem: BudgetItem = {
+          id: newId("bud"),
+          name: vendor.name,
+          category: vendor.category,
+          estimatedCost: estimate,
+          advancePaid: advancePaid,
+          status: "Confirmed",
+          vendorId: vendor.id,
+        };
+        return [newItem, ...prev];
+      } else {
+        return prev.map((b, i) =>
+          i === index
+            ? {
+                ...b,
+                name: vendor.name,
+                estimatedCost: estimate,
+                advancePaid: advancePaid,
+                status: "Confirmed" as const,
+                vendorId: vendor.id,
+              }
+            : b,
+        );
+      }
+    });
+
+    // 3. EVENT B: Master Checklist Auto-Complete
+    store.update("checklist", (prev) => {
+      const match = findChecklistItemForCategory(vendor.category, prev);
+      if (match) {
+        return prev.map((c) => (c.id === match.id ? { ...c, done: true } : c));
+      }
+      return prev;
+    });
+
+    // 4. EVENT C: Custom Task Sync
+    store.update("tasks", (prev) => {
+      return prev.map((t) => {
+        const matchName =
+          t.title.toLowerCase().includes(vendor.name.toLowerCase()) ||
+          (t.notes && t.notes.toLowerCase().includes(vendor.name.toLowerCase()));
+        if (matchName) {
+          return { ...t, status: "booked" as const };
+        }
+        return t;
+      });
+    });
+
+    // Clear highlight if it was the selected vendor
+    if (vendor.id === selectedVendorId && onClearSelectedVendor) {
+      onClearSelectedVendor();
+    }
+
+    setDepositModalVendor(null);
+  };
+
+  const handleStatusChange = (v: Vendor, nextStatus: Vendor["status"]) => {
+    if (nextStatus === "Booked") {
+      setDepositModalVendor(v);
+    } else {
+      // 1. Update Vendor Status
+      store.update("vendors", (p) =>
+        p.map((x) => (x.id === v.id ? { ...x, status: nextStatus } : x)),
+      );
+
+      // 2. Sync back to budget - if demoting from Booked, change budget status to Draft and unlink
+      store.update("budget", (prev) =>
+        prev.map((b) =>
+          b.vendorId === v.id || (b.name === v.name && b.category === v.category)
+            ? { ...b, status: "Draft" as const, vendorId: undefined }
+            : b,
+        ),
+      );
+    }
+  };
 
   const filtered =
     filter === "All" ? store.data.vendors : store.data.vendors.filter((v) => v.category === filter);
@@ -1817,7 +2608,11 @@ function VendorsTab({ store }: { store: WhStore }) {
   return (
     <div className="space-y-3">
       {!open ? (
-        <button onClick={() => setOpen(true)} className="wh-btn w-full" data-variant="primary">
+        <button
+          onClick={() => setOpen(true)}
+          className="wh-btn w-full !min-h-[52px] !h-[52px] text-base font-bold"
+          data-variant="primary"
+        >
           <Plus className="size-4" /> Add vendor
         </button>
       ) : (
@@ -1826,12 +2621,12 @@ function VendorsTab({ store }: { store: WhStore }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Vendor name"
-            className="wh-input"
+            className="wh-input !min-h-[52px] !h-[52px] text-base"
           />
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="wh-input"
+            className="wh-input !min-h-[52px] !h-[52px] text-base"
           >
             {VENDOR_CATEGORIES.map((c) => (
               <option key={c} value={c}>
@@ -1843,26 +2638,34 @@ function VendorsTab({ store }: { store: WhStore }) {
             value={contact}
             onChange={(e) => setContact(e.target.value)}
             placeholder="Phone or email"
-            className="wh-input"
+            className="wh-input !min-h-[52px] !h-[52px] text-base"
           />
           <input
             inputMode="decimal"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             placeholder="Price quote ₹"
-            className="wh-input font-mono-num"
+            className="wh-input font-mono-num !min-h-[52px] !h-[52px] text-base"
           />
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Notes"
-            className="wh-input"
+            className="wh-input !min-h-[80px] text-base"
           />
           <div className="flex gap-2">
-            <button onClick={() => setOpen(false)} className="wh-btn flex-1" data-variant="ghost">
+            <button
+              onClick={() => setOpen(false)}
+              className="wh-btn flex-1 !min-h-[52px] !h-[52px] text-base font-semibold"
+              data-variant="ghost"
+            >
               Cancel
             </button>
-            <button onClick={submit} className="wh-btn flex-1" data-variant="primary">
+            <button
+              onClick={submit}
+              className="wh-btn flex-1 !min-h-[52px] !h-[52px] text-base font-semibold"
+              data-variant="primary"
+            >
               Save
             </button>
           </div>
@@ -1875,7 +2678,7 @@ function VendorsTab({ store }: { store: WhStore }) {
             key={c}
             onClick={() => setFilter(c)}
             className={
-              "wh-chip whitespace-nowrap " +
+              "wh-chip whitespace-nowrap !min-h-[44px] px-4 flex items-center justify-center " +
               (filter === c ? "!bg-primary/25 !text-primary !border-primary/40" : "")
             }
           >
@@ -1893,61 +2696,179 @@ function VendorsTab({ store }: { store: WhStore }) {
         />
       ) : (
         <ul className="space-y-2">
-          {filtered.map((v) => (
-            <li key={v.id} className="wh-card">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate">{v.name}</p>
-                  <span className="wh-chip mt-1" data-tone="info">
-                    {v.category}
-                  </span>
-                  {v.contact && (
-                    <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                      <Phone className="size-3" /> {v.contact}
-                    </p>
-                  )}
-                  {v.notes && (
-                    <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">
-                      {v.notes}
-                    </p>
-                  )}
-                </div>
-                <div className="text-right shrink-0">
-                  {v.priceQuote > 0 && (
-                    <p className="font-mono-num font-semibold">{formatINR(v.priceQuote)}</p>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 mt-3">
-                <button
-                  onClick={() =>
-                    store.update("vendors", (p) =>
-                      p.map((x) => (x.id === v.id ? { ...x, status: cycle(x) } : x)),
-                    )
-                  }
-                  className="wh-chip"
-                  data-tone={
-                    v.status === "Contacted"
-                      ? "warning"
-                      : v.status === "Booked"
-                        ? "success"
-                        : "info"
-                  }
+          {filtered.map((v) => {
+            const isSelected = v.id === selectedVendorId;
+            const isEditing = editingVendorId === v.id;
+
+            if (isEditing) {
+              return (
+                <li
+                  key={v.id}
+                  className="wh-card space-y-3 border-accent/40 bg-accent/5 animate-fade-in"
                 >
-                  {v.status}
-                </button>
-                <button
-                  onClick={() => store.update("vendors", (p) => p.filter((x) => x.id !== v.id))}
-                  className="wh-icon-btn ml-auto"
-                  data-danger="true"
-                  aria-label="Delete"
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
-            </li>
-          ))}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-primary uppercase tracking-wider">
+                      Edit Vendor Details
+                    </h4>
+                    <input
+                      value={editVenName}
+                      onChange={(e) => setEditVenName(e.target.value)}
+                      placeholder="Vendor name"
+                      className="wh-input bg-card !min-h-[48px] !h-[48px] text-sm"
+                    />
+                    <select
+                      value={editVenCategory}
+                      onChange={(e) => setEditVenCategory(e.target.value)}
+                      className="wh-input bg-card !min-h-[48px] !h-[48px] text-sm"
+                    >
+                      {VENDOR_CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={editVenContact}
+                      onChange={(e) => setEditVenContact(e.target.value)}
+                      placeholder="Phone or email"
+                      className="wh-input bg-card !min-h-[48px] !h-[48px] text-sm"
+                    />
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={editVenPrice}
+                      onChange={(e) => setEditVenPrice(e.target.value)}
+                      placeholder="Price quote ₹"
+                      className="wh-input bg-card font-mono-num !min-h-[48px] !h-[48px] text-sm"
+                    />
+                    <textarea
+                      value={editVenNotes}
+                      onChange={(e) => setEditVenNotes(e.target.value)}
+                      placeholder="Notes"
+                      className="wh-input bg-card !min-h-[70px] text-sm"
+                    />
+                    <div className="flex gap-2 pt-1.5">
+                      <button
+                        onClick={() => setEditingVendorId(null)}
+                        className="wh-btn flex-1 !min-h-[44px] !h-[44px] text-xs font-bold cursor-pointer"
+                        data-variant="ghost"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleSaveVendorEdit(v)}
+                        className="wh-btn flex-1 !min-h-[44px] !h-[44px] text-xs font-bold cursor-pointer"
+                        data-variant="primary"
+                      >
+                        Save Changes
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              );
+            }
+
+            return (
+              <li
+                key={v.id}
+                id={`vendor-card-${v.id}`}
+                className={
+                  "wh-card transition-all duration-300 relative overflow-hidden " +
+                  (isSelected
+                    ? "border-2 border-accent shadow-[0_0_15px_rgba(var(--accent-rgb),0.35)] ring-2 ring-accent/35"
+                    : "")
+                }
+              >
+                {isSelected && (
+                  <div className="absolute top-0 right-0 bg-accent text-accent-foreground text-[10px] font-bold px-2 py-0.5 rounded-bl">
+                    Selected
+                  </div>
+                )}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-serif font-black text-base text-foreground truncate">
+                      {v.name}
+                    </p>
+                    <span className="wh-chip mt-1" data-tone="info">
+                      {v.category}
+                    </span>
+                    {v.contact && (
+                      <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1 font-medium">
+                        <Phone className="size-3" /> {v.contact}
+                      </p>
+                    )}
+                    {v.notes && (
+                      <p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap leading-relaxed font-medium">
+                        {v.notes}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    {v.priceQuote > 0 && (
+                      <p className="font-mono-num font-bold text-base text-foreground">
+                        {formatINR(v.priceQuote)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 mt-3.5 pt-3 border-t border-border/20">
+                  <div className="flex bg-secondary/35 p-1 rounded-xl gap-0.5">
+                    {(["Shortlisted", "Contacted", "Booked"] as const).map((st) => {
+                      const isActive = v.status === st;
+                      return (
+                        <button
+                          key={st}
+                          onClick={() => {
+                            if (st === v.status) return;
+                            handleStatusChange(v, st);
+                          }}
+                          className={
+                            "px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap " +
+                            (isActive
+                              ? st === "Booked"
+                                ? "bg-emerald-600 text-white shadow-[0_2px_8px_rgba(16,185,129,0.25)]"
+                                : st === "Contacted"
+                                  ? "bg-amber-500 text-white shadow-[0_2px_8px_rgba(245,158,11,0.25)]"
+                                  : "bg-primary text-white shadow-[0_2px_8px_rgba(128,19,29,0.25)]"
+                              : "text-muted-foreground hover:text-foreground hover:bg-secondary/50")
+                          }
+                        >
+                          {st}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-1 shrink-0 ml-auto">
+                    <button
+                      onClick={() => handleStartEditVendor(v)}
+                      className="p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-primary transition-colors cursor-pointer flex items-center justify-center"
+                      style={{ minWidth: "44px", minHeight: "44px" }}
+                      aria-label="Edit vendor"
+                    >
+                      <Pencil className="size-4" />
+                    </button>
+                    <button
+                      onClick={() => store.update("vendors", (p) => p.filter((x) => x.id !== v.id))}
+                      className="hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors rounded-xl flex items-center justify-center"
+                      style={{ minWidth: "44px", minHeight: "44px" }}
+                      aria-label="Delete"
+                    >
+                      <Trash2 className="size-5" />
+                    </button>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
         </ul>
+      )}
+
+      {depositModalVendor && (
+        <DepositBottomSheet
+          vendor={depositModalVendor}
+          onClose={() => setDepositModalVendor(null)}
+          onSubmit={(amt, estVal) => handleConfirmBooking(depositModalVendor, amt, estVal)}
+        />
       )}
     </div>
   );
