@@ -15,6 +15,7 @@ import {
   ArrowRight,
   ListChecks,
   Sparkles,
+  Pencil,
 } from "lucide-react";
 import type { BudgetItem, InboxItem, SavedLink, Task, Vendor, LinkCategory } from "@/lib/wh-types";
 import { BUDGET_CATEGORIES, LINK_CATEGORIES, VENDOR_CATEGORIES } from "@/lib/wh-types";
@@ -185,8 +186,19 @@ function HomeTab({ store, goto }: { store: WhStore; goto: (t: TabId) => void }) 
   const { data, setWeddingDate, session } = store;
   const [showPicker, setShowPicker] = useState(false);
   const [quickNote, setQuickNote] = useState("");
-  const totalBudget = data.budget.reduce((a, b) => a + b.estimatedCost, 0);
-  const paid = data.budget.reduce((a, b) => a + b.advancePaid, 0);
+  const [showAddNoteModal, setShowAddNoteModal] = useState(false);
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+
+  // Home page modal adding state fields
+  const [homeTaskTitle, setHomeTaskTitle] = useState("");
+  const [homeTaskDue, setHomeTaskDue] = useState("");
+
+  const limitItem = data.budget.find((b) => b.id === "total_budget_limit");
+  const totalBudgetAvailable = limitItem ? limitItem.estimatedCost : 1000000;
+  const displayBudgetItems = data.budget.filter((b) => b.id !== "total_budget_limit");
+
+  const totalBudget = totalBudgetAvailable;
+  const paid = displayBudgetItems.reduce((a, b) => a + b.advancePaid, 0);
   const openTasks = data.tasks.filter((t) => t.status === "todo").length;
   const bookedVendors = data.vendors.filter((v) => v.status === "Booked").length;
   const checklistDone = data.checklist.filter((c) => c.done).length;
@@ -205,6 +217,22 @@ function HomeTab({ store, goto }: { store: WhStore; goto: (t: TabId) => void }) 
     };
     store.update("inbox", (prev) => [item, ...prev]);
     setQuickNote("");
+  };
+
+  const handleCreateTaskFromHome = () => {
+    if (!homeTaskTitle.trim()) return;
+    const t: Task = {
+      id: newId("task"),
+      title: homeTaskTitle.trim(),
+      status: "todo",
+      notes: "",
+      dueDate: homeTaskDue || undefined,
+      createdAt: new Date().toISOString(),
+    };
+    store.update("tasks", (prev) => [t, ...prev]);
+    setHomeTaskTitle("");
+    setHomeTaskDue("");
+    setShowAddTaskModal(false);
   };
 
   return (
@@ -239,7 +267,7 @@ function HomeTab({ store, goto }: { store: WhStore; goto: (t: TabId) => void }) 
             </p>
             <button
               onClick={() => setShowPicker(true)}
-              className="wh-btn hover:scale-105 transition-transform"
+              className="wh-btn hover:scale-105 transition-transform cursor-pointer"
               data-variant="primary"
             >
               Set wedding date
@@ -290,7 +318,7 @@ function HomeTab({ store, goto }: { store: WhStore; goto: (t: TabId) => void }) 
             />
             <div className="flex justify-end mt-2">
               <button
-                className="text-xs font-semibold text-primary hover:underline px-2 py-1"
+                className="text-xs font-semibold text-primary hover:underline px-2 py-1 cursor-pointer"
                 onClick={() => setShowPicker(false)}
               >
                 Done
@@ -311,7 +339,9 @@ function HomeTab({ store, goto }: { store: WhStore; goto: (t: TabId) => void }) 
             value={quickNote}
             onChange={(e) => setQuickNote(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") submitQuickNote();
+              if (e.key === "Enter") {
+                submitQuickNote();
+              }
             }}
             placeholder="Type quote, vendor name, or a quick todo..."
             className="wh-input flex-1 !min-height-[44px] !h-[44px] text-sm"
@@ -319,7 +349,7 @@ function HomeTab({ store, goto }: { store: WhStore; goto: (t: TabId) => void }) 
           <button
             onClick={submitQuickNote}
             disabled={!quickNote.trim()}
-            className="wh-btn !min-height-[44px] !h-[44px] !px-4"
+            className="wh-btn !min-height-[44px] !h-[44px] !px-4 cursor-pointer"
             data-variant="secondary"
           >
             Capture
@@ -366,6 +396,7 @@ function HomeTab({ store, goto }: { store: WhStore; goto: (t: TabId) => void }) 
       <SectionCard
         title="Recent notes"
         action={data.inbox.length ? { label: "View all", onClick: () => goto("inbox") } : undefined}
+        plusAction={() => setShowAddNoteModal(true)}
       >
         {data.inbox.length === 0 ? (
           <EmptyRow
@@ -378,10 +409,10 @@ function HomeTab({ store, goto }: { store: WhStore; goto: (t: TabId) => void }) 
               <li
                 key={i.id}
                 onClick={() => goto("inbox")}
-                className="flex items-start gap-2 p-2 rounded-lg hover:bg-secondary/60 transition-all cursor-pointer border border-transparent hover:border-border/60"
+                className="flex items-start gap-2 p-2.5 rounded-lg hover:bg-secondary/60 transition-all cursor-pointer border border-transparent hover:border-border/60"
               >
                 <span
-                  className="wh-chip mt-0.5"
+                  className="wh-chip mt-0.5 shrink-0"
                   data-tone={
                     i.type === "budget" ? "success" : i.type === "media" ? "purple" : undefined
                   }
@@ -404,6 +435,7 @@ function HomeTab({ store, goto }: { store: WhStore; goto: (t: TabId) => void }) 
         action={
           data.tasks.length ? { label: "All tasks", onClick: () => goto("tasks") } : undefined
         }
+        plusAction={() => setShowAddTaskModal(true)}
       >
         {data.tasks.length === 0 ? (
           <EmptyRow
@@ -419,9 +451,9 @@ function HomeTab({ store, goto }: { store: WhStore; goto: (t: TabId) => void }) 
                 <li
                   key={t.id}
                   onClick={() => goto("tasks")}
-                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-secondary/60 transition-all cursor-pointer border border-transparent hover:border-border/60"
+                  className="flex items-center gap-2 p-2.5 rounded-lg hover:bg-secondary/60 transition-all cursor-pointer border border-transparent hover:border-border/60"
                 >
-                  <span className="wh-chip">To Do</span>
+                  <span className="wh-chip shrink-0">To Do</span>
                   <span className="text-sm flex-1 truncate text-foreground font-medium">
                     {t.title}
                   </span>
@@ -443,13 +475,15 @@ function HomeTab({ store, goto }: { store: WhStore; goto: (t: TabId) => void }) 
               <li
                 key={l.id}
                 onClick={() => goto("inbox")}
-                className="flex items-center gap-2 text-sm p-2 rounded-lg hover:bg-secondary/60 transition-all cursor-pointer border border-transparent hover:border-border/60"
+                className="flex items-center gap-2 text-sm p-2.5 rounded-lg hover:bg-secondary/60 transition-all cursor-pointer border border-transparent hover:border-border/60"
               >
                 <Globe className="size-3.5 text-muted-foreground" />
                 <span className="text-muted-foreground truncate font-medium">
                   {extractDomain(l.url)}
                 </span>
-                {l.comment && <span className="truncate text-foreground">· {l.comment}</span>}
+                {l.comment && (
+                  <span className="truncate text-foreground font-semibold">· {l.comment}</span>
+                )}
               </li>
             ))}
           </ul>
@@ -468,6 +502,128 @@ function HomeTab({ store, goto }: { store: WhStore; goto: (t: TabId) => void }) 
           <p className="text-[11px] text-muted-foreground mt-1.5 font-medium">
             Partner needs this code + your shared password to join
           </p>
+        </div>
+      )}
+
+      {/* Direct Add Note Premium Modal */}
+      {showAddNoteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl overflow-hidden p-6 space-y-4 animate-scale-up">
+            <div className="flex justify-between items-center">
+              <h3 className="font-serif font-bold text-lg text-primary flex items-center gap-2">
+                <Sparkles className="size-5 text-accent animate-pulse" /> Add Quick Note
+              </h3>
+              <button
+                onClick={() => {
+                  setQuickNote("");
+                  setShowAddNoteModal(false);
+                }}
+                className="text-muted-foreground hover:text-foreground text-lg p-2 min-h-[44px] min-w-[44px] cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <textarea
+              value={quickNote}
+              onChange={(e) => setQuickNote(e.target.value)}
+              placeholder="Type quote, pricing, vendor details, or any wedding idea..."
+              className="wh-input !min-h-[120px]"
+              autoFocus
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setQuickNote("");
+                  setShowAddNoteModal(false);
+                }}
+                className="wh-btn !min-h-[44px] !h-[44px] !px-4 cursor-pointer"
+                data-variant="ghost"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  submitQuickNote();
+                  setShowAddNoteModal(false);
+                }}
+                disabled={!quickNote.trim()}
+                className="wh-btn !min-h-[44px] !h-[44px] !px-6 cursor-pointer"
+                data-variant="primary"
+              >
+                Save Note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Direct Add Task Premium Modal */}
+      {showAddTaskModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl overflow-hidden p-6 space-y-4 animate-scale-up">
+            <div className="flex justify-between items-center">
+              <h3 className="font-serif font-bold text-lg text-primary flex items-center gap-2">
+                <CheckSquare className="size-5 text-accent animate-pulse" /> Add New Task
+              </h3>
+              <button
+                onClick={() => {
+                  setHomeTaskTitle("");
+                  setHomeTaskDue("");
+                  setShowAddTaskModal(false);
+                }}
+                className="text-muted-foreground hover:text-foreground text-lg p-2 min-h-[44px] min-w-[44px] cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  Task Title
+                </label>
+                <input
+                  type="text"
+                  value={homeTaskTitle}
+                  onChange={(e) => setHomeTaskTitle(e.target.value)}
+                  placeholder="What needs to be done?"
+                  className="wh-input !min-h-[44px] !h-[44px]"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  Due Date (Optional)
+                </label>
+                <input
+                  type="date"
+                  value={homeTaskDue}
+                  onChange={(e) => setHomeTaskDue(e.target.value)}
+                  className="wh-input !min-h-[44px] !h-[44px]"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                onClick={() => {
+                  setHomeTaskTitle("");
+                  setHomeTaskDue("");
+                  setShowAddTaskModal(false);
+                }}
+                className="wh-btn !min-h-[44px] !h-[44px] !px-4 cursor-pointer"
+                data-variant="ghost"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateTaskFromHome}
+                disabled={!homeTaskTitle.trim()}
+                className="wh-btn !min-h-[44px] !h-[44px] !px-6 cursor-pointer"
+                data-variant="primary"
+              >
+                Add Task
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -519,20 +675,37 @@ function Stat({
 function SectionCard({
   title,
   action,
+  plusAction,
   children,
 }: {
   title: string;
   action?: { label: string; onClick: () => void };
+  plusAction?: () => void;
   children: React.ReactNode;
 }) {
   return (
     <div className="wh-card">
       <div className="flex items-center justify-between mb-3.5">
-        <h3 className="text-sm font-serif font-bold text-foreground">{title}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-serif font-bold text-foreground">{title}</h3>
+          {plusAction && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                plusAction();
+              }}
+              className="p-1.5 rounded-full bg-secondary text-primary hover:bg-primary hover:text-primary-foreground transition-all active:scale-95 flex items-center justify-center cursor-pointer"
+              style={{ minWidth: "34px", minHeight: "34px" }}
+              aria-label={`Add new item to ${title}`}
+            >
+              <Plus className="size-3.5" />
+            </button>
+          )}
+        </div>
         {action && (
           <button
             onClick={action.onClick}
-            className="text-xs font-bold text-primary flex items-center gap-1 hover:underline"
+            className="text-xs font-bold text-primary flex items-center gap-1 hover:underline min-h-[34px] px-2 flex items-center justify-center cursor-pointer"
           >
             {action.label} <ArrowRight className="size-3" />
           </button>
@@ -631,6 +804,20 @@ function InboxNotes({ store }: { store: WhStore }) {
     store.update("budget", (prev) => [b, ...prev]);
     store.update("inbox", (prev) => prev.filter((x) => x.id !== i.id));
   };
+  const toVendor = (i: InboxItem) => {
+    const quote = extractNumber(i.text);
+    const v: Vendor = {
+      id: newId("ven"),
+      name: i.text.slice(0, 60),
+      category: "Venue", // Default category
+      contact: "",
+      priceQuote: quote,
+      status: "Shortlisted",
+      notes: i.text,
+    };
+    store.update("vendors", (prev) => [v, ...prev]);
+    store.update("inbox", (prev) => prev.filter((x) => x.id !== i.id));
+  };
   return (
     <div className="space-y-3">
       <div className="wh-card space-y-3">
@@ -646,7 +833,7 @@ function InboxNotes({ store }: { store: WhStore }) {
         <button
           onClick={submit}
           disabled={!text.trim()}
-          className="wh-btn w-full"
+          className="wh-btn w-full cursor-pointer"
           data-variant="primary"
         >
           <Sparkles className="size-4" /> Capture
@@ -662,32 +849,53 @@ function InboxNotes({ store }: { store: WhStore }) {
       ) : (
         <ul className="space-y-2">
           {store.data.inbox.map((i) => (
-            <li key={i.id} className="wh-card">
-              <div className="flex items-center gap-2 mb-2">
+            <li key={i.id} className="wh-card space-y-3">
+              <div className="flex items-center gap-2">
                 <span
-                  className="wh-chip"
+                  className="wh-chip shrink-0"
                   data-tone={
                     i.type === "budget" ? "success" : i.type === "media" ? "purple" : undefined
                   }
                 >
                   {i.type.toUpperCase()}
                 </span>
-                <span className="text-[11px] text-muted-foreground font-mono-num">
+                <span className="text-[11px] text-muted-foreground font-mono-num font-semibold">
                   {relativeTime(i.timestamp)}
                 </span>
               </div>
-              <p className="text-sm whitespace-pre-wrap break-words">{i.text}</p>
-              <div className="flex gap-2 mt-3">
-                <button onClick={() => toTask(i)} className="wh-chip">
+              <p className="text-sm whitespace-pre-wrap break-words leading-relaxed font-medium text-foreground">
+                {i.text}
+              </p>
+              <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-border/20">
+                <button
+                  onClick={() => toTask(i)}
+                  className="wh-chip min-h-[34px] px-3 font-semibold hover:bg-primary hover:text-primary-foreground transition-all cursor-pointer"
+                >
                   → Task
                 </button>
-                <button onClick={() => toBudget(i)} className="wh-chip">
+                <button
+                  onClick={() => toBudget(i)}
+                  className="wh-chip min-h-[34px] px-3 font-semibold hover:bg-emerald-500 hover:text-white transition-all cursor-pointer"
+                  data-tone="success"
+                >
                   → Budget
                 </button>
                 <button
+                  onClick={() => toVendor(i)}
+                  className="wh-chip min-h-[34px] px-3 font-semibold hover:bg-indigo-500 hover:text-white transition-all cursor-pointer"
+                >
+                  → Vendor
+                </button>
+                <button
                   onClick={() => store.update("inbox", (p) => p.filter((x) => x.id !== i.id))}
-                  className="wh-icon-btn ml-auto"
-                  data-danger="true"
+                  className="p-2 rounded-xl hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors ml-auto cursor-pointer"
+                  style={{
+                    minWidth: "40px",
+                    minHeight: "40px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
                   aria-label="Delete"
                 >
                   <Trash2 className="size-4" />
@@ -826,10 +1034,41 @@ function BudgetTab({ store }: { store: WhStore }) {
   const [status, setStatus] = useState<"Draft" | "Confirmed">("Draft");
   const { budget } = store.data;
 
-  const totalEst = budget.reduce((a, b) => a + b.estimatedCost, 0);
-  const totalPaid = budget.reduce((a, b) => a + b.advancePaid, 0);
-  const remaining = totalEst - totalPaid;
-  const pct = totalEst ? Math.min(100, Math.round((totalPaid / totalEst) * 100)) : 0;
+  // Retrieve total budget available
+  const limitItem = budget.find((b) => b.id === "total_budget_limit");
+  const totalBudgetAvailable = limitItem ? limitItem.estimatedCost : 1000000; // default 10 Lakhs if not set
+  const [editingBudgetLimit, setEditingBudgetLimit] = useState(false);
+  const [tempBudgetLimit, setTempBudgetLimit] = useState(String(totalBudgetAvailable));
+
+  const displayBudgetItems = budget.filter((b) => b.id !== "total_budget_limit");
+  const totalPaid = displayBudgetItems.reduce((a, b) => a + b.advancePaid, 0);
+  const remainingBudget = totalBudgetAvailable - totalPaid;
+  const pct = totalBudgetAvailable
+    ? Math.min(100, Math.round((totalPaid / totalBudgetAvailable) * 100))
+    : 0;
+
+  const saveBudgetLimit = () => {
+    const val = Math.max(0, parseFloat(tempBudgetLimit) || 0);
+    store.update("budget", (prev) => {
+      const existing = prev.find((b) => b.id === "total_budget_limit");
+      if (existing) {
+        return prev.map((b) => (b.id === "total_budget_limit" ? { ...b, estimatedCost: val } : b));
+      } else {
+        return [
+          ...prev,
+          {
+            id: "total_budget_limit",
+            name: "Total Budget Limit",
+            category: "System",
+            estimatedCost: val,
+            advancePaid: 0,
+            status: "Confirmed",
+          },
+        ];
+      }
+    });
+    setEditingBudgetLimit(false);
+  };
 
   const submit = () => {
     if (!name.trim()) return;
@@ -851,44 +1090,118 @@ function BudgetTab({ store }: { store: WhStore }) {
 
   return (
     <div className="space-y-4">
-      <div className="wh-card">
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Total</p>
-            <p className="font-mono-num font-semibold">{formatINR(totalEst)}</p>
+      {/* Top Total Budget Available, Total Paid, and Remaining Budget Summary Card */}
+      <div className="wh-card space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border/40">
+          <div className="flex-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Total Budget Available
+            </span>
+            {editingBudgetLimit ? (
+              <div className="flex items-center gap-2 mt-1 max-w-xs">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={tempBudgetLimit}
+                    onChange={(e) => setTempBudgetLimit(e.target.value)}
+                    className="wh-input !min-h-[40px] !h-[40px] !pl-7 text-sm font-semibold font-mono-num"
+                    autoFocus
+                  />
+                </div>
+                <button
+                  onClick={saveBudgetLimit}
+                  className="wh-btn !min-h-[40px] !h-[40px] !px-3 text-xs"
+                  data-variant="primary"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setTempBudgetLimit(String(totalBudgetAvailable));
+                    setEditingBudgetLimit(false);
+                  }}
+                  className="wh-btn !min-h-[40px] !h-[40px] !px-3 text-xs"
+                  data-variant="ghost"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-2xl font-serif font-black text-primary font-mono-num">
+                  {formatINR(totalBudgetAvailable)}
+                </p>
+                <button
+                  onClick={() => {
+                    setTempBudgetLimit(String(totalBudgetAvailable));
+                    setEditingBudgetLimit(true);
+                  }}
+                  className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                  aria-label="Edit budget limit"
+                >
+                  <Pencil className="size-3.5" />
+                </button>
+              </div>
+            )}
           </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Paid</p>
-            <p className="font-mono-num font-semibold text-[color:var(--success)]">
+          <div className="wh-chip shrink-0 text-[10px]" data-tone="primary">
+            {pct}% Spent
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 text-center">
+          <div className="p-3.5 bg-secondary/30 rounded-xl border border-border/30">
+            <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+              Total Paid
+            </p>
+            <p className="font-mono-num font-extrabold text-lg mt-1 text-success">
               {formatINR(totalPaid)}
             </p>
           </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Remaining</p>
-            <p className="font-mono-num font-semibold">{formatINR(remaining)}</p>
+          <div className="p-3.5 bg-secondary/30 rounded-xl border border-border/30">
+            <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+              Remaining Budget
+            </p>
+            <p className="font-mono-num font-extrabold text-lg mt-1 text-primary">
+              {formatINR(remainingBudget)}
+            </p>
           </div>
         </div>
-        <div className="h-2 rounded-full bg-secondary mt-3 overflow-hidden">
-          <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+
+        <div className="h-2.5 rounded-full bg-secondary overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-500"
+            style={{ width: `${pct}%` }}
+          />
         </div>
       </div>
 
       {!open ? (
-        <button onClick={() => setOpen(true)} className="wh-btn w-full" data-variant="primary">
+        <button
+          onClick={() => setOpen(true)}
+          className="wh-btn w-full min-h-[44px] cursor-pointer"
+          data-variant="primary"
+        >
           <Plus className="size-4" /> Add budget item
         </button>
       ) : (
-        <div className="wh-card space-y-2">
+        <div className="wh-card space-y-3 animate-fade-in">
+          <h4 className="font-serif font-bold text-sm text-primary">New Budget Item</h4>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="What is this for?"
-            className="wh-input"
+            placeholder="What is this for? (e.g., Catering, Decor)"
+            className="wh-input !min-h-[44px] !h-[44px]"
+            autoFocus
           />
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="wh-input"
+            className="wh-input !min-h-[44px] !h-[44px]"
           >
             {BUDGET_CATEGORIES.map((c) => (
               <option key={c} value={c}>
@@ -897,68 +1210,86 @@ function BudgetTab({ store }: { store: WhStore }) {
             ))}
           </select>
           <div className="grid grid-cols-2 gap-2">
-            <input
-              inputMode="decimal"
-              value={est}
-              onChange={(e) => setEst(e.target.value)}
-              placeholder="Estimated ₹"
-              className="wh-input font-mono-num"
-            />
-            <input
-              inputMode="decimal"
-              value={paid}
-              onChange={(e) => setPaid(e.target.value)}
-              placeholder="Advance paid ₹"
-              className="wh-input font-mono-num"
-            />
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground">
+                Estimated ₹
+              </label>
+              <input
+                inputMode="decimal"
+                value={est}
+                onChange={(e) => setEst(e.target.value)}
+                placeholder="Estimated ₹"
+                className="wh-input !min-h-[44px] !h-[44px] font-mono-num"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground">
+                Advance paid ₹
+              </label>
+              <input
+                inputMode="decimal"
+                value={paid}
+                onChange={(e) => setPaid(e.target.value)}
+                placeholder="Advance paid ₹"
+                className="wh-input !min-h-[44px] !h-[44px] font-mono-num"
+              />
+            </div>
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => setStatus(status === "Draft" ? "Confirmed" : "Draft")}
-              className="wh-chip"
+              className="wh-chip min-h-[34px] px-3.5 cursor-pointer"
               data-tone={status === "Confirmed" ? "success" : undefined}
             >
               {status}
             </button>
           </div>
           <div className="flex gap-2 pt-1">
-            <button onClick={() => setOpen(false)} className="wh-btn flex-1" data-variant="ghost">
+            <button
+              onClick={() => setOpen(false)}
+              className="wh-btn flex-1 !min-h-[44px] !h-[44px] cursor-pointer"
+              data-variant="ghost"
+            >
               Cancel
             </button>
-            <button onClick={submit} className="wh-btn flex-1" data-variant="primary">
+            <button
+              onClick={submit}
+              className="wh-btn flex-1 !min-h-[44px] !h-[44px] cursor-pointer"
+              data-variant="primary"
+            >
               Save
             </button>
           </div>
         </div>
       )}
 
-      {budget.length === 0 ? (
+      {displayBudgetItems.length === 0 ? (
         <EmptyState
           icon={<DollarSign className="size-6" />}
           title="No budget items yet"
           body="Add your first expense to start tracking."
         />
       ) : (
-        <ul className="space-y-2">
-          {budget.map((b) => (
+        <ul className="space-y-3">
+          {displayBudgetItems.map((b) => (
             <li key={b.id} className="wh-card">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate">{b.name}</p>
-                  <span className="wh-chip mt-1" data-tone="info">
+                  <p className="font-semibold text-[15px] text-foreground truncate">{b.name}</p>
+                  <span className="wh-chip mt-1.5" data-tone="info">
                     {b.category}
                   </span>
                 </div>
                 <div className="text-right">
-                  <p className="font-mono-num font-semibold text-primary">
+                  <p className="font-mono-num font-extrabold text-[15px] text-primary">
                     {formatINR(b.estimatedCost)}
                   </p>
-                  <p className="font-mono-num text-xs text-muted-foreground">
+                  <p className="font-mono-num text-xs font-semibold text-muted-foreground mt-0.5">
                     Paid {formatINR(b.advancePaid)}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 mt-3">
+              <div className="flex items-center gap-2 mt-3.5 pt-2 border-t border-border/20">
                 <button
                   onClick={() =>
                     store.update("budget", (p) =>
@@ -969,15 +1300,21 @@ function BudgetTab({ store }: { store: WhStore }) {
                       ),
                     )
                   }
-                  className="wh-chip"
+                  className="wh-chip min-h-[32px] px-3 font-semibold cursor-pointer"
                   data-tone={b.status === "Confirmed" ? "success" : undefined}
                 >
                   {b.status}
                 </button>
                 <button
                   onClick={() => store.update("budget", (p) => p.filter((x) => x.id !== b.id))}
-                  className="wh-icon-btn ml-auto"
-                  data-danger="true"
+                  className="p-2 rounded-xl hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors ml-auto cursor-pointer"
+                  style={{
+                    minWidth: "40px",
+                    minHeight: "40px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
                   aria-label="Delete"
                 >
                   <Trash2 className="size-4" />
@@ -1161,8 +1498,140 @@ function TasksList({ store }: { store: WhStore }) {
   );
 }
 
+function ChecklistItemRow({
+  item,
+  onToggle,
+  onSave,
+  onDelete,
+}: {
+  item: ChecklistItem;
+  onToggle: () => void;
+  onSave: (newText: string) => void;
+  onDelete: () => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(item.text);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditText(item.text);
+    }
+  }, [item.text, isEditing]);
+
+  const handleSave = () => {
+    if (editText.trim() && editText.trim() !== item.text) {
+      onSave(editText.trim());
+    }
+    setIsEditing(false);
+  };
+
+  if (isEditing) {
+    return (
+      <div className="flex items-center gap-2 py-3 px-3 w-full animate-fade-in bg-secondary/15 rounded-xl border border-border/40">
+        <input
+          type="text"
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSave();
+            if (e.key === "Escape") setIsEditing(false);
+          }}
+          className="wh-input flex-1 !min-h-[44px] !h-[44px] text-sm py-1 px-3 bg-card"
+          autoFocus
+        />
+        <button
+          onClick={handleSave}
+          className="wh-btn !min-h-[44px] !h-[44px] !px-4 cursor-pointer"
+          data-variant="primary"
+        >
+          Save
+        </button>
+        <button
+          onClick={() => setIsEditing(false)}
+          className="wh-btn !min-h-[44px] !h-[44px] !px-3 cursor-pointer"
+          data-variant="ghost"
+        >
+          ✕
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="group/item flex items-center justify-between py-2.5 px-3 hover:bg-secondary/20 rounded-xl transition-all border border-transparent hover:border-border/40">
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-3.5 text-left flex-1 min-w-0 min-h-[44px] cursor-pointer"
+      >
+        <span
+          className={
+            "size-6 shrink-0 rounded-md border flex items-center justify-center transition-all " +
+            (item.done
+              ? "bg-primary border-primary text-primary-foreground scale-105"
+              : "border-border hover:border-primary/50")
+          }
+        >
+          {item.done && <CheckSquare className="size-3.5" />}
+        </span>
+        <span
+          className={
+            "text-[14px] leading-relaxed " +
+            (item.done
+              ? "line-through opacity-50 text-muted-foreground"
+              : "font-medium text-foreground")
+          }
+        >
+          {item.text}
+        </span>
+      </button>
+
+      <div className="flex items-center gap-1 shrink-0 opacity-100 sm:opacity-0 group-hover/item:opacity-100 transition-opacity ml-2">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditText(item.text);
+            setIsEditing(true);
+          }}
+          className="p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+          style={{
+            minWidth: "40px",
+            minHeight: "40px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          aria-label="Edit task"
+        >
+          <Pencil className="size-4" />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="p-2 rounded-xl hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors cursor-pointer"
+          style={{
+            minWidth: "40px",
+            minHeight: "40px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          aria-label="Delete task"
+        >
+          <Trash2 className="size-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ChecklistView({ store }: { store: WhStore }) {
   const { checklist } = store.data;
+  const [newText, setNewText] = useState("");
+  const [newPhase, setNewPhase] = useState("12+ Months Out");
+  const [openAdd, setOpenAdd] = useState(false);
+
   const grouped = useMemo(() => {
     const map = new Map<string, typeof checklist>();
     for (const c of checklist) {
@@ -1172,55 +1641,133 @@ function ChecklistView({ store }: { store: WhStore }) {
     }
     return Array.from(map.entries());
   }, [checklist]);
+
   const done = checklist.filter((c) => c.done).length;
 
+  const submit = () => {
+    if (!newText.trim()) return;
+    const item: ChecklistItem = {
+      id: newId("chk"),
+      phase: newPhase,
+      text: newText.trim(),
+      done: false,
+    };
+    store.update("checklist", (prev) => [...prev, item]);
+    setNewText("");
+    setOpenAdd(false);
+  };
+
+  const handleToggle = (id: string) => {
+    store.update("checklist", (p) => p.map((x) => (x.id === id ? { ...x, done: !x.done } : x)));
+  };
+
+  const handleSave = (id: string, text: string) => {
+    store.update("checklist", (p) => p.map((x) => (x.id === id ? { ...x, text } : x)));
+  };
+
+  const handleDelete = (id: string) => {
+    store.update("checklist", (p) => p.filter((x) => x.id !== id));
+  };
+
+  // Get all unique phases or defaults
+  const phases = Array.from(
+    new Set([
+      "12+ Months Out",
+      "6–12 Months Out",
+      "3–6 Months Out",
+      "1–3 Months Out",
+      "Final 2 Weeks",
+      ...checklist.map((c) => c.phase),
+    ]),
+  );
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="wh-card">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">Overall progress</p>
-        <p className="text-2xl font-mono-num font-semibold mt-1">
-          {done} <span className="text-muted-foreground text-lg">/ {checklist.length}</span>
+        <p className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
+          Overall progress
         </p>
-        <div className="h-2 rounded-full bg-secondary mt-2 overflow-hidden">
+        <p className="text-2xl font-mono-num font-black mt-1">
+          {done}{" "}
+          <span className="text-muted-foreground text-lg font-semibold">/ {checklist.length}</span>
+        </p>
+        <div className="h-2.5 rounded-full bg-secondary mt-2.5 overflow-hidden">
           <div
-            className="h-full bg-primary"
+            className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-500"
             style={{ width: `${checklist.length ? (done / checklist.length) * 100 : 0}%` }}
           />
         </div>
       </div>
+
+      {!openAdd ? (
+        <button
+          onClick={() => setOpenAdd(true)}
+          className="wh-btn w-full min-h-[44px] cursor-pointer"
+          data-variant="primary"
+        >
+          <Plus className="size-4" /> Add checklist item
+        </button>
+      ) : (
+        <div className="wh-card space-y-3 animate-fade-in">
+          <h4 className="font-serif font-bold text-sm text-primary">New Checklist Item</h4>
+          <input
+            value={newText}
+            onChange={(e) => setNewText(e.target.value)}
+            placeholder="E.g., Book Nadaswaram artists"
+            className="wh-input !min-h-[44px] !h-[44px]"
+            autoFocus
+          />
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              Select Phase
+            </label>
+            <select
+              value={newPhase}
+              onChange={(e) => setNewPhase(e.target.value)}
+              className="wh-input !min-h-[44px] !h-[44px]"
+            >
+              {phases.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={() => setOpenAdd(false)}
+              className="wh-btn flex-1 !min-h-[44px] !h-[44px] cursor-pointer"
+              data-variant="ghost"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={submit}
+              className="wh-btn flex-1 !min-h-[44px] !h-[44px] cursor-pointer"
+              data-variant="primary"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      )}
+
       {grouped.map(([phase, items]) => (
-        <div key={phase} className="space-y-1.5">
-          <h4 className="text-xs uppercase tracking-wider text-muted-foreground sticky top-[73px] bg-background/95 backdrop-blur py-1.5">
+        <div key={phase} className="space-y-2">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-primary/80 sticky top-[73px] bg-background/95 backdrop-blur py-2 z-10 border-b border-border/20">
             {phase}
           </h4>
-          <ul className="wh-card !p-2 divide-y divide-border">
+          <div className="wh-card !p-2 space-y-1.5">
             {items.map((c) => (
-              <li key={c.id}>
-                <button
-                  onClick={() =>
-                    store.update("checklist", (p) =>
-                      p.map((x) => (x.id === c.id ? { ...x, done: !x.done } : x)),
-                    )
-                  }
-                  className="w-full flex items-center gap-3 py-3 px-2 text-left"
-                >
-                  <span
-                    className={
-                      "size-5 rounded-md border flex items-center justify-center transition " +
-                      (c.done
-                        ? "bg-primary border-primary text-primary-foreground"
-                        : "border-border")
-                    }
-                  >
-                    {c.done && <CheckSquare className="size-3" />}
-                  </span>
-                  <span className={"text-sm flex-1 " + (c.done ? "line-through opacity-50" : "")}>
-                    {c.text}
-                  </span>
-                </button>
-              </li>
+              <ChecklistItemRow
+                key={c.id}
+                item={c}
+                onToggle={() => handleToggle(c.id)}
+                onSave={(text) => handleSave(c.id, text)}
+                onDelete={() => handleDelete(c.id)}
+              />
             ))}
-          </ul>
+          </div>
         </div>
       ))}
     </div>

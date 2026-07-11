@@ -146,6 +146,10 @@ export function useWeddingStore(): Store {
       });
       try {
         await putCollection({ data: { token, collection: col, items: next as unknown[] } });
+        const { updatedAt } = await syncCheck({ data: { token } });
+        if (updatedAt) {
+          lastSyncRef.current = updatedAt;
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Save failed");
         // self-heal on next poll
@@ -162,6 +166,10 @@ export function useWeddingStore(): Store {
       setSessionState({ ...session, weddingDate: d });
       try {
         await setWeddingDateFn({ data: { token, weddingDate: d } });
+        const { updatedAt } = await syncCheck({ data: { token } });
+        if (updatedAt) {
+          lastSyncRef.current = updatedAt;
+        }
       } catch {
         /* silent */
       }
